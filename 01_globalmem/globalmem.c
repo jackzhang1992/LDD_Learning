@@ -4,6 +4,7 @@
 #include <linux/cdev.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/device.h>
 
 
 #define GLOBALMEM_SIZE 0x1000  /* 4k */
@@ -11,7 +12,7 @@
 
 //TODO: change the method by allocate automatically
 #define GLOBALMEM_MAJOR 230 
-
+static struct class *simple_class;
 static int globalmem_major = GLOBALMEM_MAJOR;
 
 /* module param is used for passing info from outside
@@ -57,26 +58,32 @@ static long globalmem_ioctl(struct file *filp,unsigned int cmd,
 
 }
 
+/*read n(size) bytes from file start from ppos to buf(user space)*/
 static ssize_t globalmem_read(struct file *filp, char __user *buf, size_t size,
 loff_t *ppos)
 {
-	unsigned long p = *ppos;
-	unsigned int count = size;
+	unsigned long p = *ppos; /*start pos*/
+	unsigned int count = size; /*read size*/
 	int ret = 0;
 	struct globalmem_dev *dev = filp->private_data;
 
+	/*if start ppos is larger than data size*/
 	if (p >= GLOBALMEM_SIZE)
 		return 0;
 
+	/*if count to read is larger than data left*/
 	if (count > GLOBALMEM_SIZE - p)
 		count = GLOBALMEM_SIZE - p;
 
+	/*copy start from globalmem->mem+p, and n(count) bytes
+	 * to buf in user space
+	 */
 	if (copy_to_user(buf,dev->mem + p , count)) {
 		ret = -EFAULT;	
 	}
-	else {
-		*ppos += count;
-		ret = count;
+	else {/*return 0 means successful*/
+		*ppos += count;/*return current ppos*/
+		ret = count;/* number of bytes has been read*/
 		printk (KERN_INFO "read %u bytes(s) from %lu\n",count, p);
 	}
 	return ret;
@@ -86,8 +93,26 @@ loff_t *ppos)
 static ssize_t globalmem_write(struct file *filp, const char __user *buf,
 size_t size, loff_t *ppos)
 {
+	unsigned long p = *ppos;
+	unsigned int count = size;
+	int ret = 0;
+	struct globalmem_dev *dev = filp->private_data;
 
+	if (p >= GLOBALMEM_SIZE)
+		return 0;
+	if (count > GLOBALMEM_SIZE - p)
+		count = GLOBALMEM_SIZE - p;
 
+	if (copy_from_user(dev->mem + p, buf, count))
+		ret = -EFAULT;
+	else {
+		*ppos += count;
+		ret = count;
+
+		printk(KERN_INFO "written %u bytes(s) from %lu\n", count, p);
+	}
+
+	return ret;
 } 
 
 static loff_t globalmem_llseek(struct file *filp, loff_t offset, int orig)
@@ -180,6 +205,12 @@ static int __init globalmem_init(void)
 	 * report cdev object to the system
 	 */
 	globalmem_setup_cdev(globalmem_devp,0);	
+
+	//TODO: add some error protection here
+	simple_class = class_create(THIS_MODULE,"globalmem");
+	
+	device_create(simple_class,NULL,devno,0,"globalmem");
+
 	
 	printk (KERN_INFO "globalmem initialized\n");
 	return 0;
@@ -195,11 +226,14 @@ module_init(globalmem_init);
 
 static void __exit globalmem_exit(void)
 {
+	device_destroy(simple_class,MKDEV(globalmem_major,0));
+	class_destroy(simple_class);
+
 	cdev_del(&globalmem_devp->cdev);
 	kfree(globalmem_devp);
 	unregister_chrdev_region(MKDEV(globalmem_major,0),1);
 	
-	printk(KERN_INFO "globalmem exit\n")
+	printk(KERN_INFO "globalmem exit\n");
 }
 
 module_exit(globalmem_exit);
