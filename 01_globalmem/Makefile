@@ -7,10 +7,14 @@ obj-m += globalmem.o
 # Specify flags for the module compilation.
 #EXTRA_CFLAGS=-g -O0
 
-build: kernel_modules
+build: kernel_modules client_program
 
 kernel_modules:
 	make -C /lib/modules/$(KVERS)/build M=$(CURDIR) modules
-
+client_program:
+	gcc read.c -o read
+	gcc write.c -o write
 clean:
 	make -C /lib/modules/$(KVERS)/build M=$(CURDIR) clean
+	rm -rf read 
+	rm -rf write

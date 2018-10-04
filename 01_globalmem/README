@@ -1,0 +1,14 @@
+Some Instructions:
+
+make 
+insmod globalmem.ko
+
+echo "hello world" > /dev/globalmem
+cat /dev/globalmem
+
+./write
+./read
+
+rmmod globalmem
+
+make clean

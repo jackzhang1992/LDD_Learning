@@ -8,10 +8,9 @@
 
 
 #define GLOBALMEM_SIZE 0x1000  /* 4k */
-#define MEM_CLEAR 0x1
-
-//TODO: change the method by allocate automatically
+#define MEM_CLEAR 0x1 /*cmd for ioctl to clear the mem set*/
 #define GLOBALMEM_MAJOR 230 
+#define DEVICE_NAME "globalmem"
 static struct class *simple_class;
 static int globalmem_major = GLOBALMEM_MAJOR;
 
@@ -51,11 +50,26 @@ static int globalmem_release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
+/* parse cmd to the driver
+* info includes
+* cmd
+* value
+* and finally to do different operations
+*/
 static long globalmem_ioctl(struct file *filp,unsigned int cmd,
 			unsigned long arg)
 {
+	struct globalmem_dev *dev = filp->private_data;
 
-
+	switch (cmd) {
+	case MEM_CLEAR:/* MEM_CLEAR to clear the whole mem set*/
+		memset(dev->mem,0,GLOBALMEM_SIZE);
+		printk(KERN_INFO "globalmem is set to zero\n");
+		break;
+	default:
+		return -EINVAL; /*invalid argument*/
+	}
+	return 0;
 }
 
 /*read n(size) bytes from file start from ppos to buf(user space)*/
@@ -115,8 +129,48 @@ size_t size, loff_t *ppos)
 	return ret;
 } 
 
+
+/*change file offset position
+ * offset- number of bytes
+ * orig - reference point
+	0 - position = offset
+	1 - position = offset +current 
+*/
 static loff_t globalmem_llseek(struct file *filp, loff_t offset, int orig)
 {
+	loff_t ret = 0;
+	switch(orig) {
+		case 0:
+			if (offset < 0 ){
+				ret = -EINVAL;
+				break;
+			}
+			if ((unsigned int)offset > GLOBALMEM_SIZE){
+				ret = -EINVAL;
+				break;
+			}	
+			filp->f_pos = (unsigned int)offset;
+			ret = filp->f_pos;
+			break;
+		case 1:
+			if ((filp->f_pos + offset) > GLOBALMEM_SIZE) {
+				ret = -EINVAL;
+				break;
+			}
+			if ((filp->f_pos + offset) < 0) {
+				ret = -EINVAL;
+				break;
+			}
+			filp->f_pos += offset;
+			ret = filp->f_pos;
+			break;
+
+		default:
+			ret = -EINVAL;
+			break;
+	}	
+
+	return ret;
 }
 
 
@@ -207,10 +261,17 @@ static int __init globalmem_init(void)
 	globalmem_setup_cdev(globalmem_devp,0);	
 
 	//TODO: add some error protection here
-	simple_class = class_create(THIS_MODULE,"globalmem");
-	
-	device_create(simple_class,NULL,devno,0,"globalmem");
+	if((simple_class = class_create(THIS_MODULE,"globalmem"))==NULL) {
+		//TODO: do some error operation here
+		printk(KERN_INFO "create class failed\n");
+		return -EINVAL;
+	}
 
+	if (NULL == device_create(simple_class,NULL,devno,0,"globalmem")) {
+		//TODO: do some error operation here
+		printk(KERN_INFO "device create failed\n");
+		return -EINVAL;
+	}
 	
 	printk (KERN_INFO "globalmem initialized\n");
 	return 0;
