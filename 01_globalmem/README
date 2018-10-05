@@ -21,3 +21,10 @@ Some Instructions:
 > rmmod globalmem
 
 > make clean
+
+
+TODO list:
+1.refine read and write client, it's better to merge the two file into one
+2.add llseek and ioctl function in client program
+3.refine coding style in globamem.c, make it simple and clean
+4.some error handling process needs to be optimized.
