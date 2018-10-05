@@ -1,14 +1,23 @@
+01_globalmem
+
+Description:
+The demo would create a device file, you can use  "open, write, read, ioctl" to 
+control the device.  
+
+The advantage is to interact with a device resources in kernel space.
+
+
 Some Instructions:
 
-make 
-insmod globalmem.ko
+> make 
+> insmod globalmem.ko
 
-echo "hello world" > /dev/globalmem
-cat /dev/globalmem
+> echo "hello world" > /dev/globalmem
+> cat /dev/globalmem
 
-./write
-./read
+> ./write
+> ./read
 
-rmmod globalmem
+> rmmod globalmem
 
-make clean
+> make clean
